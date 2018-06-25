@@ -1,4 +1,5 @@
 import os
+import base64
 import mxnet as mx
 import numpy as np
 from collections import namedtuple
@@ -7,9 +8,7 @@ import urllib
 from urlparse import urlparse
 
 Batch = namedtuple('Batch', ['data'])
-
-custom_model_dir="/workspace/model"
-custom_label_file="/workspace/model/label.txt"
+base64_data_prefix = 'data:application/octet-stream;base64,'
 
 
 class ImagePredictor (object):
@@ -22,10 +21,12 @@ class ImagePredictor (object):
 
     def load_model(self):
         print "init model"
+        '''
         path='http://data.mxnet.io/models/imagenet/'
         [mx.test_utils.download(path+'resnet/18-layers/resnet-18-0000.params', fname='weight.params', dirname=self.model_dir),
         mx.test_utils.download(path+'resnet/18-layers/resnet-18-symbol.json', fname='deploy.symbol.json', dirname=self.model_dir),
         mx.test_utils.download(path+'synset.txt', fname='labels.csv', dirname=self.model_dir)]
+        '''
 
         print "set cpu/gpu model"
         # set the context on CPU, switch to GPU if there is one available
@@ -58,10 +59,13 @@ class ImagePredictor (object):
         # download and show the image
         # fname = mx.test_utils.download(url, dirname=self.data_dir)
         # img = mx.image.imread(fname)
-        if urlparse(uri) == None:
-            # TODO, read base64
+        if urlparse(uri) == None and uri.startswith(base64_data_prefix):
+            content = base64.decodestring(uri[len(base64_data_prefix):])
+        elif urlparse(uri) != None:
+            content = urllib.urlopen(uri).read()
+        else:
             return None
-        img = mx.image.imdecode(urllib.urlopen(uri).read())
+        img = mx.image.imdecode(content)
         if img is None:
             return None
         # convert into format (batch, RGB, width, height)

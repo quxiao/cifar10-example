@@ -5,7 +5,7 @@ import json
 worker = predictor.ImagePredictor()
 worker.load_model()
 
-@route('/predict', method='POST')
+@route('/v1/image/classify/predict', method='POST')
 def predict():
     if request.json == None:
         response.code = 500
@@ -15,8 +15,12 @@ def predict():
     except Exception:
         response.code = 500
         return {'code': 2, 'msg': 'request data is invalid'}
-    ret = worker.predict(uri)
+    try:
+        ret = worker.predict(uri)
+    except Exception:
+        response.code = 500
+        return {'code': 3, 'msg': 'server error'}
     return {'code': 0, 'results': ret}
 
 if __name__ == '__main__':
-    run(port='8080', debug=True)
+    run(host='0.0.0.0', port='8080', debug=True)
