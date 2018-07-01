@@ -18,33 +18,35 @@ class ImagePredictor (object):
         self.data_dir = "data"
         self.mod = None
         self.labels = []
+        self.symbol_filename = 'deploy.symbol.json'
+        self.weight_filename = 'weight.params'
+        self.label_filename = 'labels.csv'
 
-    def load_model(self):
-        print "init model"
-        '''
-        path='http://data.mxnet.io/models/imagenet/'
-        [mx.test_utils.download(path+'resnet/18-layers/resnet-18-0000.params', fname='weight.params', dirname=self.model_dir),
-        mx.test_utils.download(path+'resnet/18-layers/resnet-18-symbol.json', fname='deploy.symbol.json', dirname=self.model_dir),
-        mx.test_utils.download(path+'synset.txt', fname='labels.csv', dirname=self.model_dir)]
-        '''
+    def load_model(self, custom_model_dir=None, symbol_fn=None, weight_fn=None, label_fn=None):
+        if custom_model_dir != None:
+            self.model_dir = custom_model_dir
+        if symbol_fn != None:
+            self.symbol_filename = symbol_fn
+        if weight_fn != None:
+            self.weight_filename = weight_fn
+        if label_fn != None:
+            self.label_filename = label_fn
 
         print "set cpu/gpu model"
         # set the context on CPU, switch to GPU if there is one available
         ctx = mx.cpu()
 
         print "loading model"
-        sym, arg_params, aux_params = self._load_model()
+        sym, arg_params, aux_params, labels = self._load_model()
         self.mod = mx.mod.Module(symbol=sym, context=ctx, label_names=None)
         self.mod.bind(for_training=False, data_shapes=[('data', (1,3,224,224))], 
                 label_shapes=self.mod._label_shapes)
         self.mod.set_params(arg_params, aux_params, allow_missing=True)
-        print "loading labels"
-        with open(os.path.join(self.model_dir, 'labels.csv'), 'r') as f:
-            self.labels = [l.rstrip() for l in f]
+        self.labels = labels
 
     def _load_model(self):
-        sym = mx.symbol.load(os.path.join(self.model_dir, 'deploy.symbol.json'))
-        save_dict = mx.ndarray.load(os.path.join(self.model_dir, 'weight.params'))
+        sym = mx.symbol.load(os.path.join(self.model_dir, self.symbol_filename))
+        save_dict = mx.ndarray.load(os.path.join(self.model_dir, self.weight_filename))
         arg_params = {}
         aux_params = {}
         for k, v in save_dict.items():
@@ -53,7 +55,12 @@ class ImagePredictor (object):
                 arg_params[name] = v
             if tp == 'aux':
                 aux_params[name] = v
-        return sym, arg_params, aux_params
+
+        labels = []
+        with open(os.path.join(self.model_dir, self.label_filename), 'r') as f:
+            labels = [l.rstrip() for l in f]
+
+        return sym, arg_params, aux_params, labels
 
     def get_image(self, uri):
         # download and show the image
@@ -83,8 +90,10 @@ class ImagePredictor (object):
         prob = np.squeeze(prob)
         a = np.argsort(prob)[::-1]
         ret = []
+        print 'uri: %s' % (uri)
         for i in a[0:topN]:
             print('probability=%f, class=%s' %(prob[i], self.labels[i]))
             ret.append({'prob': float(prob[i]), 'label': self.labels[i]})
+        print ''
         return ret
 
